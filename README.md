@@ -116,4 +116,11 @@ O administrador tem acesso a alguns comandos:
 
 <--------------------------------------------------------------------Restrições------------------------------------------------------------------------>
 
-blah blah blah
+Requisitos e restrições:
+
+     -> Ficheiros regulares são repositorios de informação.
+     -> O mecanismo de comunicação deve ser os named pipe, devendo eles serem implementados como na aula. O uso de muitos pipes é penalizado
+     -> So podem ser usados mecanismos de comunicação dados nas aulas
+     -> Não pode ser usado bibliotecas terceira (exceto ncurses)
+     -> Não usar codigo de stackoverflow , github e etc.
+     -> Todo o codigo tem que ser explicado.
