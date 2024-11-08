@@ -13,15 +13,29 @@
 #include <errno.h>
 
 #define MAN_FIFO "managerFIFO"
-#define FED_FIFO "feedFIFO"
+#define MAX_CLIENTES 1
+#define MAX_TOPICOS 20
+
 
 typedef struct{
   char menssagem[300];
   int pid;
   char nome[20];
-  char topico[20];
+  char topico;
 } msgStruct;
 
+
+typedef struct {
+    int pid;
+    char fifo_name[128];
+} cliente;
+
+typedef struct {
+  char nomeTopico[20];
+  int contInscritos;
+  cliente clientes[MAX_CLIENTES];
+  fifo_name[128];
+} topico;
 
 #endif // !TP_SO_24_25_H
 

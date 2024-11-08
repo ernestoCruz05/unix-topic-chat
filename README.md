@@ -61,7 +61,7 @@ Salvaguarda de menssagens:
      -> Menssagens persistentes que ainda têm tempo de vida são salvaguardadas no encerro do "Manager" sendo recuperadas quando o "Manager" re-abrir.
      -> O ficheiro de texto deve ter a seguinte estrutura:
          -> Uma menssagem por linha.
-         -> As linhas devem seguir esta estrutura : <topico><username><tempo_vida><menssagem_conteudo>.
+  -> As linhas devem seguir esta estrutura : <topico><username><tempo_vida><menssagem_conteudo>.
          -> O nome do ficheiro está na variavel de ambiente MSG_FICH sendo obrigatorio usa-la.
 
 Envio de menssagens:
