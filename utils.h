@@ -13,6 +13,7 @@
 #include <errno.h>
 
 #define MAN_FIFO "managerFIFO"
+#define FED_FIFO "feedFIFO"
 
 typedef struct{
   char menssagem[300];
