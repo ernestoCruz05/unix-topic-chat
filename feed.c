@@ -31,14 +31,14 @@ void commLista() {
 void commMsg(char *topico, int duracao, char *menssagem, char *username) {
     //Codigo para enviar a menssagem para os clientes no topico.
     msgStruct sendMsg;
-    // Garante que a string é propriamente terminado
+    // Garante que a string é propriamente terminado e que assim o buffer não da overflow
     strncpy(sendMsg.topico, topico, sizeof(sendMsg.topico) - 1);
-    sendMsg.topico[sizeof(sendMsg.topico) - 1] = '/0';
+    sendMsg.topico[sizeof(sendMsg.topico) - 1] = '\0';
     // Acaba aqui
     strncpy(sendMsg.menssagem, menssagem, sizeof(sendMsg.menssagem) - 1);
-    sendMsg.menssagem[sizeof(sendMsg.menssagem) - 1] = '/0';
+    sendMsg.menssagem[sizeof(sendMsg.menssagem) - 1] = '\0';
     strncpy(sendMsg.nome, username, sizeof(sendMsg.nome) - 1);
-    sendMsg.nome[sizeof(sendMsg.nome) - 1] = '/0';
+    sendMsg.nome[sizeof(sendMsg.nome) - 1] = '\0';
     sendMsg.duracao = duracao;
     sendMsg.pid = getpid();
 
