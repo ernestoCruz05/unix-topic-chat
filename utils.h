@@ -20,8 +20,9 @@
 typedef struct{
   char menssagem[300];
   int pid;
+  int duracao;
   char nome[20];
-  char topico;
+  char topico[20];
 } msgStruct;
 
 
@@ -34,7 +35,7 @@ typedef struct {
   char nomeTopico[20];
   int contInscritos;
   cliente clientes[MAX_CLIENTES];
-  fifo_name[128];
+  char fifo_name[128];
 } topico;
 
 #endif // !TP_SO_24_25_H
