@@ -2,102 +2,285 @@
 
 
 
-cliente clientes[MAX_CLIENTES];
+cliente clientesLista[MAX_CLIENTES];
 int contCliente = 0;
 
-topico topicos[MAX_TOPICOS];
+topico topicosLista[MAX_TOPICOS];
 int contTopicos = 0;
 
-void terminaChat(int s, siginfo_t *i , void *v){
+void terminaChat(int s, siginfo_t *i , void *v)
+{
     unlink(MAN_FIFO);
     printf("\n[MANAGER] Terminou a sessão\n");
     exit(1);
 }
 
-void criaCliente(int pid) {
-    if (contCliente < MAX_CLIENTES) {
-        clientes[contCliente].pid = pid;
-        snprintf(clientes[contCliente].fifo_name, sizeof(clientes[contCliente].fifo_name), "/tmp/client_fifo_%d", pid);
-        contCliente++;
-    } else {
-        printf("[ERRO] Numero maximo de clientes atingido!\n");
-    }
-}
-
-void criaTopico(msgStruct *msg){
-  if(contTopicos < MAX_TOPICOS){
-    strcpy(topicos[contTopicos].nomeTopico, msg.topico);
-    snprintf(topicos[contTopicos].fifo_name , sizeof(topicos[contTopicos].fifo_name), "/tmp/clientes_fifo_%s" , nomeTopico);
-    contTopicos++;
-  } else {
-    printf("[ERRO] Numero maximo de topicos atingido!\n");
+void criaCliente(msgStruct *msg) 
+{
+  if (contCliente < MAX_CLIENTES) 
+  {
+    clientesLista[contCliente].pid = msg->pid;
+    snprintf(clientesLista[contCliente].fifo_name, sizeof(clientesLista[contCliente].fifo_name), "/tmp/client_fifo_%d", msg->pid);
+    strncpy(clientesLista[contCliente].nome , msg->nome , sizeof(clientesLista[contCliente].nome) - 1);
+    clientesLista[contCliente].nome[sizeof(clientesLista[contCliente].nome) - 1] = '0';
+    clientesLista[contCliente].numTopicos = 0;
+    contCliente++;
   } 
+  else 
+  {
+    printf("[ERRO] Numero maximo de clientes atingido!\n");
+  }
 }
 
-void commRemoveCliente(char* nome) {
-    for (int i = 0; i < contCliente; i++) {
-        if (strcmp(clientes[i].nome, nome) == 0) {
-            clientes[i] = clientes[contCliente - 1];
-            contCliente--;
-            break;
-        }
+void verificaAdicionaCliente(msgStruct *msg)
+{
+  for(int i = 0 ; i < contCliente ; i++)
+  {
+    if(strcmp(clientesLista[i].nome , msg->nome) == 0)
+    {
+      return;
     }
+  }
+  criaCliente(msg);
 }
 
-void commUsers(){
+void criaTopico(msgStruct *msg)
+{
+  if(contTopicos < MAX_TOPICOS)
+  {
+    strncpy(topicosLista[contTopicos].nomeTopico , msg->topico , sizeof(topicosLista[contTopicos].nomeTopico) -1);
+    topicosLista[contTopicos].nomeTopico[sizeof(topicosLista[contTopicos].nomeTopico) - 1] = '\0';
+    topicosLista[contTopicos].contInscritos = 0;
+    contTopicos++;
+    printf("[MANAGER] Topico '%s' criado a pedido de um utilizador!\n" , msg->topico);
+  } else 
+  {
+    printf("[ERRO] Numero maximo de topicos atingido!\n");
+  }
+}
+
+void verificaAdicionaTopico(msgStruct *msg)
+{
+  for(int i = 0 ; i < contTopicos ; i++)
+  {
+    if(strcmp(topicosLista[i].nomeTopico , msg->topico) == 0)
+    {
+      return;
+    }
+  }
+  criaTopico(msg);
+}
+
+void commRemoveCliente(char* nome) 
+{
+  for (int i = 0; i < contCliente; i++) 
+  {
+    if (strcmp(clientesLista[i].nome, nome) == 0)
+    {
+      clientesLista[i] = clientesLista[contCliente - 1];
+      contCliente--;
+      printf("[MANAGER] Cliente '%s' removido com sucesso!\n" , nome);
+      return;
+    }
+  }
+  printf("[ERRO] Cliente '%s' não encontrado!\n", nome);
+}
+
+void commUsers()
+{
   //Amostra os utilizadores
-  if(contCliente > 0){
+  if(contCliente > 0)
+  {
     printf("[MANAGER] Lista de clientes:\n");
-    for(int i = 0 ; i < contTopicos ; i++){
-        printf("[CLIENTE] [%d] %d -> %s\n" , clientes[i].pid , i , clientes[i].nome);
+    for(int i = 0 ; i < contTopicos ; i++)
+    {
+        printf("[CLIENTE] [%d] %d -> %s\n" , clientesLista[i].pid , i , clientesLista[i].nome);
     }
-  } else {
+  } 
+  else 
+  {
     printf("[MANAGER] Não ha nenhum cliente registrado\n");
   }
 }
 
-void commListaTopicos(){
-    if(contTopicos > 0){
-    printf("[MANAGER] Lista de topicos:\n")
-    for(int i = 0 ; i < contTopicos ; i++){
-        printf("[MANAGER] %d -> %s\n" , i , topicos[i]);
-        }
-    } else {
-        printf("[MANAGER] Não ha nenhum topico ativo!\n");
+void commListaTopicos()
+{
+  if(contTopicos > 0)
+  {
+    printf("[MANAGER] Lista de topicos:\n");
+    for(int i = 0 ; i < contTopicos ; i++)
+    {
+      printf("[MANAGER] %d -> %s\n" , i , topicosLista[i]);
     }
+  } 
+  else 
+  {
+    printf("[MANAGER] Não ha nenhum topico ativo!\n");
+  }
 }
 
-void commMostraTopico(char* topico){
+void commMostraTopico(char* topico)
+{
 }
 
-void commBloqueiaTopico(char* topico){
+void commBloqueiaTopico(char* topico)
+{
+    for(int i = 0 ; i < contTopicos ; i++)
+  {
+    if(strcmp(topico , topicosLista[i].nomeTopico) == 0)
+    {
+      if(topicosLista[i].estado == 0)
+      {
+        topicosLista[i].estado = 1;
+        printf("[MANAGER] Topico '%s' bloqueado com sucesso!\n" , topico);
+        return;
+      }else
+      {
+        printf("[MANAGER] Topico '%s' ja bloqueado\n" , topico);
+        return;
+      }
+    }
+  }
+  printf("[ERRO] Topico '%s' não encontrado na lista!\n" , topico);
+}
+
+void commDesbloqueiaTopico(char* topico)
+{
+  for(int i = 0 ; i < contTopicos ; i++)
+  {
+    if(strcmp(topico , topicosLista[i].nomeTopico) == 0)
+    {
+      if(topicosLista[i].estado == 1)
+      {
+        topicosLista[i].estado = 0;
+        printf("[MANAGER] Topico '%s' desbloqueado com sucesso!\n" , topico);
+        return;
+      } else 
+      {
+        printf("[MANAGER] Topico '%s' ja desbloqueado!\n", topico);
+        return;
+      }
+    }
+  }
+  printf("[ERRO] Topico '%s' não encontrado na lista!\n" , topico);
+}
     //Ainda nao sei como implementar
-}
-
-void commDesbloqueiaTopico(char* topico){
-  
-}
-    //Ainda nao sei como implementar
-void commFecha(){
-
+void commFecha()
+{
+  for(int i = 0 ; i < contCliente ; i++){
+    
+  }
 }
 
 
 
-void broadcastMessage(msgStruct *msg) {
-    for (int i = 0; i < contCliente; i++) {
-        int fd = open(clientes[i].fifo_name, O_WRONLY);
+void enviaMenssagem(msgStruct *msg) 
+{
+  for(int i = 0 ; i < contTopicos ; i++)
+  {
+    if(strcmp(topicosLista[i].nomeTopico , msg->topico) == 0){
+      if(topicosLista[i].estado == 1)
+      {
+        printf("[ERRO] Topico '%s está bloqueado!\n" , msg->topico);
+        
+        errorStruct errMsg;
+        snprintf(errMsg.errorMenssagem, sizeof(errMsg.errorMenssagem), "Topico '%s' esta bloqueado!" , msg->topico);
+        errMsg.pid = msg->pid;
+        
+        int fd = open(clientesLista[i].fifo_name , O_WRONLY);
+        if(fd == -1)
+        {
+          printf("[ERRO] Falha ao abrir o FIFO do cliente '%s'!\n" , clientesLista[i].nome);
+          return;
+        }
+
+        if(write(fd, &errMsg , sizeof(errMsg)) == -1)
+        {
+          printf("[ERRO] Falha ao enviar menssagem de erro para o cliente '%s'!\n" , clientesLista[i].nome);
+        }
+        close(fd);
+        return;
+      }
+      break;
+    }
+  }
+
+  for (int i = 0; i < contCliente; i++)
+  {
+        int inscrito = 0;
+        
+        for(int j = 0 ; i < clientesLista[i].numTopicos; j++)
+        {
+        if(strcmp(clientesLista[i].topicosIns[j] , msg->topico) == 0)
+          {
+          inscrito = 1;
+          break;
+          }
+        }
+        
+    if(inscrito)
+    {
+      if(msg->duracao == 0)
+      {
+        int fd = open(clientesLista[i].fifo_name, O_WRONLY);
         if (fd == -1) {
-            printf("[ERRO] Falha ao abrir FIFO do cliente %d!\n", clientes[i].pid);
+            printf("[ERRO] Falha ao abrir FIFO do cliente %d!\n", clientesLista[i].pid);
             continue;
         }
-
+        
         if (write(fd, msg, sizeof(*msg)) == -1) {
-            printf("[ERRO] Falha ao enviar menssagem para o cliente %d!\n", clientes[i].pid);
+            printf("[ERRO] Falha ao enviar menssagem para o cliente %d!\n", clientesLista[i].pid);
         }
 
         close(fd);
+      } else
+      {
+        //Logica para quando a menssagem for persistente
+
+      }
     }
+  }
+}
+
+void processaPedidos(pedidoStruct *pedido)
+{
+  for(int i = 0 ; i < contCliente ; i++)
+  {
+    if(clientesLista[i].pid == pedido->pid)
+    {
+      if(pedido->tipo == 0)
+      {
+        for(int j = 0 ; j < contTopicos ; j++)
+        {
+          if(strcmp(topicosLista[j].nomeTopico , pedido->topico) == 0)
+          {
+            clientesLista[i].topicosIns[clientesLista[i].numTopicos] = topicosLista[j];
+            clientesLista[i].numTopicos++;
+            topicosLista[j].contInscritos++;
+            printf("[PEDIDO] Cliente '%s' inscrito no topico '%s'!\n" , clientesLista[i].nome , pedido->topico);
+            return;
+          }
+        }
+        printf("[ERRO-PEDIDO] Topico '%s' não encontrado!\n" , pedido->topico);
+      } 
+      else if(pedido->tipo == 1)
+      {
+        for(int j = 0 ; j < clientesLista[i].numTopicos ; j++)
+        {
+          if(strcmp(clientesLista[i].topicosIns[j].nomeTopico , pedido->topico) == 0)
+          {
+            clientesLista[i].topicosIns[j] = clientesLista[i].topicosIns[clientesLista[i].numTopicos -1];
+            clientesLista[i].numTopicos--;
+            printf("[PEDIDO] Cliente '%s' desinscrito do topico '%s'!\n", clientesLista[i].nome , pedido->topico);
+            return;
+          }
+        }
+        printf("[ERRO-PEDIDO] Topico '%s' não encontrado!\n", pedido->topico);
+      }
+      return;
+    }
+  }
+  printf("[ERRO-PEDIDO]Cliente com PID %d não encontrado!\n", pedido->pid);
 }
 
 int main(int argc, char* argv[]) {
@@ -133,7 +316,7 @@ int main(int argc, char* argv[]) {
     */
 
    char input[128];
-   while(1){
+    /* while(1){
         printf("Insira o comando que deseja realizar: ");
         fgets(input, sizeof(input), stdin);
         input[strcspn(input , "\n")] = 0;
@@ -167,18 +350,22 @@ int main(int argc, char* argv[]) {
     }
     return 0;
    }
+    */ /* Acho que isto depois vai ser a main thread, a ler o teclado do manager para enviar comandos */
 
-   /* msgStruct recvMsg;
-     while (1) {
-        int size = read(fd, &recvMsg, sizeof(recvMsg));
-        if (size > 0) {
-            printf("[%d] %s -> %s\n", recvMsg.pid, recvMsg.nome, recvMsg.menssagem);
-            fflush(stdout);
-            addClient(recvMsg.pid); // Add client to the list
-            broadcastMessage(&recvMsg); // Broadcast message to all clients
-        }
+
+    /* Outra thread acho eu, so que esta é para ler o que vem do cliente */
+    msgStruct recvMsg;
+    while (1) 
+  {
+    int size = read(fd, &recvMsg, sizeof(recvMsg));
+    if(size > 0 )
+    {
+      verificaAdicionaCliente(&recvMsg);
+      verificaAdicionaTopico(&recvMsg);     
+      enviaMenssagem(&recvMsg);
     }
-    */
+  }
+    
     close(fd);
     return 0;
 }
