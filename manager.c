@@ -34,7 +34,7 @@ void criaTopico(msgStruct *msg){
   } 
 }
 
-void removeCliente(char* nome) {
+void commRemoveCliente(char* nome) {
     for (int i = 0; i < contCliente; i++) {
         if (strcmp(clientes[i].nome, nome) == 0) {
             clientes[i] = clientes[contCliente - 1];
@@ -46,24 +46,38 @@ void removeCliente(char* nome) {
 
 void commUsers(){
   //Amostra os utilizadores
+  if(contCliente > 0){
+    printf("[MANAGER] Lista de clientes:\n");
+    for(int i = 0 ; i < contTopicos ; i++){
+        printf("[CLIENTE] [%d] %d -> %s\n" , clientes[i].pid , i , clientes[i].nome);
+    }
+  } else {
+    printf("[MANAGER] Não ha nenhum cliente registrado\n");
+  }
 }
 
-void commTopicosDetalhado(){
-
+void commListaTopicos(){
+    if(contTopicos > 0){
+    printf("[MANAGER] Lista de topicos:\n")
+    for(int i = 0 ; i < contTopicos ; i++){
+        printf("[MANAGER] %d -> %s\n" , i , topicos[i]);
+        }
+    } else {
+        printf("[MANAGER] Não ha nenhum topico ativo!\n");
+    }
 }
 
 void commMostraTopico(char* topico){
-
 }
 
 void commBloqueiaTopico(char* topico){
-
+    //Ainda nao sei como implementar
 }
 
 void commDesbloqueiaTopico(char* topico){
   
 }
-
+    //Ainda nao sei como implementar
 void commFecha(){
 
 }
@@ -111,14 +125,51 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    int fd = open(MAN_FIFO, O_RDONLY);
+   /* int fd = open(MAN_FIFO, O_RDONLY);
     if (fd == -1) {
         printf("[ERRO] Falha ao abrir FIFO!\n");
         return 1;
     }
+    */
 
-    msgStruct recvMsg;
-    while (1) {
+   char input[128];
+   while(1){
+        printf("Insira o comando que deseja realizar: ");
+        fgets(input, sizeof(input), stdin);
+        input[strcspn(input , "\n")] = 0;
+
+        if (strcmp(input, "users") == 0) {
+            commUsers();
+        } else if (strncmp(input, "remove ", 7) == 0) {
+            char clienteNome[20];
+            sscanf(input + 7, "%s", clienteNome);
+            commRemoveCliente(clienteNome);
+        } else if (strncmp(input, "show ", 5) == 0) {
+            char topico[20];
+            sscanf(input + 5, "%s", topico);
+            commMostraTopico(topico);
+        } else if (strcmp(input, "topics") == 0) {
+            commListaTopicos();
+        } else if (strncmp(input , "lock " , 5) == 0){
+            char topico[20];
+            sscanf(input + 5 , "%s" , topico);
+            commBloqueiaTopico(topico);
+        }else if(strncmp(input, "unlock " , 7) == 0){
+            char topico[20]; 
+            sscanf(input + 7 , "%s" , topico);
+            commDesbloqueiaTopico(topico);
+        } else if (strcmp(input, "close") == 0) {
+            commFecha();
+            break;
+        } else {
+            printf("[ERRO] Comando não conhecido!\n");
+        }
+    }
+    return 0;
+   }
+
+   /* msgStruct recvMsg;
+     while (1) {
         int size = read(fd, &recvMsg, sizeof(recvMsg));
         if (size > 0) {
             printf("[%d] %s -> %s\n", recvMsg.pid, recvMsg.nome, recvMsg.menssagem);
@@ -127,7 +178,7 @@ int main(int argc, char* argv[]) {
             broadcastMessage(&recvMsg); // Broadcast message to all clients
         }
     }
-
+    */
     close(fd);
     return 0;
 }

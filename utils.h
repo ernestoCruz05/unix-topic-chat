@@ -29,6 +29,8 @@ typedef struct{
 typedef struct {
     int pid;
     char fifo_name[128];
+    char nome[20];
+
 } cliente;
 
 typedef struct {
