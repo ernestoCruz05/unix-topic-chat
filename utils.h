@@ -12,13 +12,14 @@
 #include <sys/stat.h>
 #include <signal.h>
 #include <errno.h>
-
+#include <pthread.h>
+#include <sys/select.h>
 
 
 #define MAN_FIFO "managerFIFO"
-#define MAX_CLIENTES 1
+#define MAX_CLIENTES 10
 #define MAX_TOPICOS 20
-
+#define MAX_MENSSAGENS 5
 
 typedef struct{
   char menssagem[300];
@@ -26,7 +27,19 @@ typedef struct{
   int duracao;
   char nome[20];
   char topico[20];
+
+  //Flags
+  int fechado;
+  int bloqueado;
 } msgStruct;
+
+typedef struct{
+  char menssagem[300];
+  int pid;
+  int tempoVida;
+  char topico[20];
+  char nome[20];
+} msgPersStruct;
 
 
 typedef struct {
@@ -36,24 +49,35 @@ typedef struct {
 
 typedef struct{
   char topico[20];
+  char username[20];
   int pid;
-  int tipo;                               // 1- Desinscrever ; 0 - Inscrever
-} pedidoStruct
+  char FIFO[128];
+  int tipo;                               // 0 - Inscrever ; 1 - Desinscrever ; 2 - Validar nome ; 3 - Saida
+} pedidoStruct;
 
 typedef struct {
-    int pid;
-    char fifo_name[128];
-    char nome[20];
-    int numTopicos;
-    topico topicosIns[MAX_CLIENTES];
-} cliente;
+  int resposta;                           // 0 - Pedido não aceite ; 1 - Pedido aceite
+} respostaStruct;
+
 
 typedef struct {
   char nomeTopico[20];
   int contInscritos;
-  char fifo_name[128];
   int estado;                             // 1 - Bloqueado ; 0 - Desbloqueado
 } topico;
+
+typedef struct {
+  int pid;
+  char nome[20];
+  int numTopicos;
+  char FIFO[128];
+  topico topicosIns[MAX_CLIENTES];
+} cliente;
+
+typedef struct {
+  pthread_mutex_t *m;
+  int stop;
+} TDADOS;
 
 #endif // !TP_SO_24_25_H
 

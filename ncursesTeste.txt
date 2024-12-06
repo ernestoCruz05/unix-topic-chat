@@ -1,0 +1,322 @@
+#include <ncurses.h>
+#include "utils.h"
+
+#define MSG_WIN_HEIGHT 20
+#define CMD_WIN_HEIGHT 3
+
+int tentExit = 0;
+char FED_FIFO[256];
+WINDOW *msg_win, *cmd_win;
+
+void handler_sigalrm(int s, siginfo_t *i, void *v) {
+    tentExit++;
+    if (tentExit < 3) {
+        wprintw(msg_win, "\n[FEED] [%d / 3] To exit use the exit command! After 3 attempts the process will terminate.", tentExit);
+        wrefresh(msg_win);
+    } else {
+        unlink(FED_FIFO);
+        wprintw(msg_win, "\n[FEED] Process terminated forcefully >:(");
+        wrefresh(msg_win);
+        endwin();
+        exit(1);
+    }
+}
+
+void handler_errorMsg(errorStruct *errMsg) {
+    wprintw(msg_win, "\n[ERROR] Received from manager: %s", errMsg->errorMenssagem);
+    wrefresh(msg_win);
+}
+
+void commLista() {
+    wprintw(msg_win, "\n[FEED] List of commands:\n");
+    wprintw(msg_win, "[FEED] msg <topic><duration><message>\n");
+    wprintw(msg_win, "[FEED] topics \n");
+    wprintw(msg_win, "[FEED] subscribe <topic>\n");
+    wprintw(msg_win, "[FEED] unsubscribe <topic>\n");
+    wprintw(msg_win, "[FEED] exit\n");
+    wrefresh(msg_win);
+}
+
+void commMsg(char *topico, int duracao, char *menssagem, char *username) {
+    msgStruct sendMsg;
+    strncpy(sendMsg.topico, topico, sizeof(sendMsg.topico) - 1);
+    sendMsg.topico[sizeof(sendMsg.topico) - 1] = '\0';
+    strncpy(sendMsg.menssagem, menssagem, sizeof(sendMsg.menssagem) - 1);
+    sendMsg.menssagem[sizeof(sendMsg.menssagem) - 1] = '\0';
+    strncpy(sendMsg.nome, username, sizeof(sendMsg.nome) - 1);
+    sendMsg.nome[sizeof(sendMsg.nome) - 1] = '\0';
+    sendMsg.duracao = duracao;
+    sendMsg.pid = getpid();
+
+    int fd = open(MAN_FIFO, O_WRONLY);
+    if (fd == -1) {
+        wprintw(msg_win, "\n[ERROR] Failed to open FIFO!");
+        wrefresh(msg_win);
+        exit(-1);
+    }
+
+    if (write(fd, &sendMsg, sizeof(sendMsg)) == -1) {
+        wprintw(msg_win, "\n[ERROR] Failed to send message!");
+        wrefresh(msg_win);
+    }
+
+    close(fd);
+}
+
+void commTopicos(const char *FED_FIFO) {
+    int fd = open(FED_FIFO, O_RDONLY);
+    if (fd == -1) {
+        wprintw(msg_win, "[ERROR] Failed to open FIFO!");
+        wrefresh(msg_win);
+        exit(-1);
+    }
+
+    char topicos[20];
+    while (read(fd, topicos, sizeof(topicos)) > 0) {
+        wprintw(msg_win, "\n[FEED] Subscribed to topics: %s\n", topicos);
+        wrefresh(msg_win);
+    }
+}
+
+void commSubscribe(char *topico) {
+    pedidoStruct pedido;
+    pedido.pid = getpid();
+    strncpy(pedido.topico, topico, sizeof(pedido.topico) - 1);
+    pedido.topico[sizeof(pedido.topico) - 1] = '\0';
+    pedido.tipo = 0;
+
+    int fd = open(MAN_FIFO, O_WRONLY);
+    if (fd == -1) {
+        wprintw(msg_win, "\n[ERROR] Failed to open manager FIFO!");
+        wrefresh(msg_win);
+        return;
+    }
+
+    if (write(fd, &pedido, sizeof(pedido)) == -1) {
+        wprintw(msg_win, "\n[ERROR] Failed to send subscription request!");
+        wrefresh(msg_win);
+    }
+
+    close(fd);
+}
+
+void commUnsubscribe(char *topico) {
+    pedidoStruct pedido;
+    pedido.pid = getpid();
+    strncpy(pedido.topico, topico, sizeof(pedido.topico) - 1);
+    pedido.topico[sizeof(pedido.topico) - 1] = '\0';
+    pedido.tipo = 1;
+
+    int fd = open(MAN_FIFO, O_WRONLY);
+    if (fd == -1) {
+        wprintw(msg_win, "\n[ERROR] Failed to open manager FIFO!");
+        wrefresh(msg_win);
+        return;
+    }
+
+    if (write(fd, &pedido, sizeof(pedido)) == -1) {
+        wprintw(msg_win, "\n[ERROR] Failed to send unsubscription request!");
+        wrefresh(msg_win);
+    }
+
+    close(fd);
+}
+
+void commExit(const char *FED_FIFO) {
+    pedidoStruct pedido;
+    pedido.pid = getpid();
+    pedido.tipo = 3;
+
+    int fd = open(MAN_FIFO, O_WRONLY);
+    if (fd == -1) {
+        wprintw(msg_win, "\n[ERROR] Failed to open manager FIFO!");
+        wrefresh(msg_win);
+        return;
+    }
+
+    if (write(fd, &pedido, sizeof(pedido)) == -1) {
+        wprintw(msg_win, "\n[ERROR] Failed to send exit request!");
+        wrefresh(msg_win);
+    }
+
+    close(fd);
+    unlink(FED_FIFO);
+    wprintw(msg_win, "\n[FEED] Session ended successfully");
+    wrefresh(msg_win);
+    endwin();
+    exit(1);
+}
+
+int enviaUser(char* username) {
+    pedidoStruct pedido;
+    respostaStruct resposta;
+
+    pedido.pid = getpid();
+    strncpy(pedido.username, username, sizeof(pedido.username) - 1);
+    pedido.username[sizeof(pedido.username) - 1] = '\0';
+    pedido.tipo = 2;
+    snprintf(pedido.FIFO, sizeof(pedido.FIFO), "/tmp/client_fifo_%d", pedido.pid);
+
+    int fd = open(MAN_FIFO, O_WRONLY);
+    if (fd == -1) {
+        wprintw(msg_win, "\n[ERROR] Failed to open manager FIFO!");
+        wrefresh(msg_win);
+        endwin();
+        exit(1);
+    }
+
+    if (write(fd, &pedido, sizeof(pedido)) == -1) {
+        wprintw(msg_win, "\n[ERROR] Failed to send validation request!");
+        wrefresh(msg_win);
+        close(fd);
+        endwin();
+        exit(1);
+    }
+    close(fd);
+
+    int fd_feed = open(FED_FIFO, O_RDONLY);
+    if (fd_feed == -1) {
+        wprintw(msg_win, "\n[ERROR] Failed to open client FIFO!");
+        wrefresh(msg_win);
+        endwin();
+        exit(1);
+    }
+
+    if (read(fd_feed, &resposta, sizeof(resposta)) == -1) {
+        wprintw(msg_win, "\n[ERROR] Failed to read validation response!");
+        wrefresh(msg_win);
+        close(fd_feed);
+        endwin();
+        exit(1);
+    }
+    close(fd_feed);
+
+    if (resposta.resposta == 0) {
+        wprintw(msg_win, "\n[ERROR] Username not allowed!");
+        wrefresh(msg_win);
+        return 0;
+    }
+    return 1;
+}
+
+int main(int argc, char *argv[]) {
+    if (argc != 2) {
+        printf("\n[ERROR] Invalid number of arguments!");
+        printf("\n[FIX] Format: %s <username>", argv[0]);
+        exit(1);
+    }
+
+    struct sigaction sa;
+    sa.sa_sigaction = handler_sigalrm;
+    sa.sa_flags = SA_RESTART | SA_SIGINFO;
+    sigaction(SIGINT, &sa, NULL);
+
+    char *username = argv[1];
+    snprintf(FED_FIFO, sizeof(FED_FIFO), "/tmp/client_fifo_%d", getpid());
+
+    if (mkfifo(FED_FIFO, 0666) == -1) {
+        if (errno != EEXIST) {
+            printf("\n[ERROR] Failed to create client FIFO!");
+            return 1;
+        }
+    }
+
+    initscr();
+    cbreak();
+    noecho();
+    msg_win = newwin(MSG_WIN_HEIGHT, COLS, 0, 0);
+    cmd_win = newwin(CMD_WIN_HEIGHT, COLS, LINES - CMD_WIN_HEIGHT, 0);
+    scrollok(msg_win, TRUE);
+    scrollok(cmd_win, TRUE);
+
+    int resposta = enviaUser(username);
+    if (resposta == 0) {
+        unlink(FED_FIFO);
+        endwin();
+        exit(-1);
+    }
+
+    int fd_feed = open(FED_FIFO, O_RDONLY | O_NONBLOCK);
+    if (fd_feed == -1) {
+        wprintw(msg_win, "\n[ERROR] Failed to open client FIFO!");
+        wrefresh(msg_win);
+        endwin();
+        return 1;
+    }
+
+    char input[256];
+    fd_set read_fds;
+    msgStruct msg;
+
+    while (1) {
+        FD_ZERO(&read_fds);
+        FD_SET(0, &read_fds);
+        FD_SET(fd_feed, &read_fds);
+
+        int max_fd = fd_feed > 0 ? fd_feed : 0;
+        int ret = select(max_fd + 1, &read_fds, NULL, NULL, NULL);
+        if (ret == -1) {
+            wprintw(msg_win, "\n[ERROR] Select failed!");
+            wrefresh(msg_win);
+            break;
+        }
+
+        if (FD_ISSET(0, &read_fds)) {
+            wclear(cmd_win);
+            wprintw(cmd_win, "\nInsira o comando: ");
+            wrefresh(cmd_win);
+            echo(); // Enable echo mode for cmd_win
+            wgetnstr(cmd_win, input, sizeof(input));
+            noecho(); // Disable echo mode after input
+
+            if (strncmp(input, "msg ", 4) == 0) {
+                char topico[20];
+                int duracao;
+                char menssagem[300];
+                sscanf(input + 4, "%s %d %[^\n]", topico, &duracao, menssagem);
+                commMsg(topico, duracao, menssagem, username);
+            } else if (strcmp(input, "topics") == 0) {
+                commTopicos(FED_FIFO);
+            } else if (strncmp(input, "subscribe ", 10) == 0) {
+                char topico[20];
+                sscanf(input + 10, "%s", topico);
+                commSubscribe(topico);
+            } else if (strncmp(input, "unsubscribe ", 12) == 0) {
+                char topico[20];
+                sscanf(input + 12, "%s", topico);
+                commUnsubscribe(topico);
+            } else if (strcmp(input, "lista") == 0) {
+                commLista();
+            } else if (strcmp(input, "exit") == 0) {
+                commExit(FED_FIFO);
+                break;
+            } else {
+                wprintw(msg_win, "\n[ERROR] Unknown command!");
+                wrefresh(msg_win);
+            }
+        }
+
+        if (FD_ISSET(fd_feed, &read_fds)) {
+            int size = read(fd_feed, &msg, sizeof(msg));
+            if (size > 0) {
+                if (msg.fechado == 1) {
+                    wprintw(msg_win, "\n[MANAGER] Manager terminated! Thank you for participating :3");
+                    wrefresh(msg_win);
+                    unlink(FED_FIFO);
+                    break;
+                }
+                if (msg.bloqueado == 1) {
+                    wprintw(msg_win, "%s", msg.menssagem);
+                    wrefresh(msg_win);
+                } else {
+                    wprintw(msg_win, "\n<%s> %s - %s", msg.topico, msg.nome, msg.menssagem);
+                    wrefresh(msg_win);
+                }
+            }
+        }
+    }
+
+    close(fd_feed);
+    endwin();
+    return 0;
+}
