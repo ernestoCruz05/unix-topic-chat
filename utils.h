@@ -21,6 +21,35 @@
 #define MAX_TOPICOS 20
 #define MAX_MENSSAGENS 5
 
+/*
+ *  Comentarios:
+ *
+ *  No manager tou a converter as menssagens normais para persistentes (se a duração for maior q 0) para adiciona-las a lista
+ *  de menssagens persistentes mas depois quando as mando de volta para os clientes converto outra vez para normais, acho q isto
+ *  esta a criar o problema de as persistentes serem mandadas duas vezes, mas n faço a minima ideia de como arranjar.
+ *
+ *  Não sei se estou a terminar as threads ordenadamente como o pessoal estava a falar mas acho que não está a haver problema nenhum?
+ *  Por isso por mim esta tudo bem
+ *
+ *
+ *  Temos que fazer isto sempre que estamos a copiar uma frase para evitar que acha um overflow no buffer
+ *  e assim tambem garantimos que a frase é propriamente terminada com o \0
+    strncpy(sendMsg.topico, topico, sizeof(sendMsg.topico) - 1);
+    sendMsg.topico[sizeof(sendMsg.topico) - 1] = '\0';
+ *
+ *  Este ternario está a determinar o size do "buffer" (honestamente nem sei pq mete este nome, fui influenciado por POO)
+ *  dependendo do tipo da estrutura que recebe.
+ *  Tive que fazer isto pois o tamanho muda entre as menssagens e os pedidos e preciso que o buffer tenha o tamanho necessario
+ *  para cada um dos dois
+    char buffer[sizeof(msgStruct) > sizeof(pedidoStruct) ? sizeof(msgStruct) : sizeof(pedidoStruct)];
+ *
+ *  Tou a fazer isto porque senão não estava a ler bem os comandos que eram escritos no teclado, nao percebo bem o porque mas funciona
+    fgets(input, sizeof(input), stdin);
+    input[strcspn(input, "\n")] = 0;
+ *
+ *
+*/
+
 typedef struct{
   char menssagem[300];
   int pid;
@@ -52,14 +81,23 @@ typedef struct{
   char username[20];
   int pid;
   char FIFO[128];
-  int tipo;                               // 0 - Inscrever ; 1 - Desinscrever ; 2 - Validar nome ; 3 - Saida
+  int tipo;                               // 0 - Inscrever ; 1 - Desinscrever ; 2 - Validar nome ; 3 - Saida ; 4 - Amostrar topicos
 } pedidoStruct;
 
 typedef struct {
   int resposta;                           // 0 - Pedido não aceite ; 1 - Pedido aceite
 } respostaStruct;
 
+typedef struct {
+  char topico[20];
+  int numMenssagens;
+  int estado;                             // 1 - Bloqueado ; 0 - Desbloqueado
+} topicosInfo;
 
+typedef struct {
+  int numTopicos;
+  topicosInfo topicos[MAX_TOPICOS];
+} respostaTopicosStruct;
 typedef struct {
   char nomeTopico[20];
   int contInscritos;

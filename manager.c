@@ -1,13 +1,5 @@
 #include "utils.h"
 
-/*
- * Por implementar:
- * void commMostraTopico(char *topico) {}
- * menssagens persistentes e thread timer
- * commando para vigiar um topico
- * void commMostraTopico(char *topico) {}
-*/
-
 int tentExit = 0;
 
 cliente clientesLista[MAX_CLIENTES];
@@ -151,9 +143,6 @@ void enviaMenssagensPersistentes(cliente *client, char *topico) {
 
                 close(fd);
             }
-            else {
-                return;
-            }
         }
     }
 }
@@ -234,7 +223,19 @@ void commListaTopicos() {
     }
 }
 
-void commMostraTopico(char *topico) {}
+void commMostraTopico(char *topico) {
+    int encontrado = 0;
+    for(int i = 0 ; i < contMenssagens ; i++) {
+        if(strcmp(menssagensLista[i].topico, topico) == 0) {
+            encontrado = 1;
+            printf("\nMenssagem persistente : |<%s> %s - %s| - com duracao %d"
+                , menssagensLista[i].topico , menssagensLista[i].nome , menssagensLista[i].menssagem , menssagensLista[i].tempoVida - time(NULL));
+        }
+    }
+    if(!encontrado) {
+        printf("[ERRO] Nenhuma mensagem persistente encontrada para o tópico '%s'.\n", topico);
+    }
+}
 
 void commBloqueiaTopico(char *topico) {
     for (int i = 0; i < contTopicos; i++) {
@@ -271,7 +272,6 @@ void commDesbloqueiaTopico(char *topico) {
 void enviaMenssagem(msgStruct *msg) {
     verificaAdicionaTopico(msg);
 
-    // Create the persistent message only once
     msgPersStruct msgNova;
     if (msg->duracao > 0) {
         msgNova.pid = msg->pid;
@@ -283,7 +283,6 @@ void enviaMenssagem(msgStruct *msg) {
         strncpy(msgNova.nome, msg->nome, sizeof(msgNova.nome) - 1);
         msgNova.nome[sizeof(msgNova.nome) - 1] = '\0';
 
-        // Add the persistent message to the list
         if (contMenssagens < MAX_MENSSAGENS) {
             menssagensLista[contMenssagens] = msgNova;
             contMenssagens++;
@@ -393,9 +392,44 @@ void verificaTimer() {
             fflush(stdout);
             menssagensLista[i] = menssagensLista[contMenssagens - 1];
             contMenssagens--;
-            i--; // Adjust the index to check the new message at this position
+            i--;
         }
     }
+}
+
+int contaMensagensPersistentes(const char *topico) {
+    int count = 0;
+    for (int i = 0; i < contMenssagens; i++) {
+        if (strcmp(menssagensLista[i].topico, topico) == 0) {
+            count++;
+        }
+    }
+    return count;
+}
+
+
+void handlePedidoTopicos(pedidoStruct *pedido) {
+    respostaTopicosStruct resposta;
+    resposta.numTopicos = contTopicos;
+
+    for (int i = 0; i < contTopicos; i++) {
+        strncpy(resposta.topicos[i].topico, topicosLista[i].nomeTopico, sizeof(resposta.topicos[i].topico) - 1);
+        resposta.topicos[i].topico[sizeof(resposta.topicos[i].topico) - 1] = '\0';
+        resposta.topicos[i].numMenssagens = contaMensagensPersistentes(topicosLista[i].nomeTopico);
+        resposta.topicos[i].estado = topicosLista[i].estado;
+    }
+
+    int fd = open(pedido->FIFO, O_WRONLY);
+    if (fd == -1) {
+        printf("[ERRO] Falha ao abrir FIFO do cliente %d!\n", pedido->pid);
+        return;
+    }
+
+    if (write(fd, &resposta, sizeof(resposta)) == -1) {
+        printf("[ERRO] Falha ao enviar resposta de lista de tópicos para o cliente %d!\n", pedido->pid);
+    }
+
+    close(fd);
 }
 
 
@@ -409,7 +443,7 @@ void *threadRecebeMenssagens(void *dados) {
 
     char buffer[sizeof(msgStruct) > sizeof(pedidoStruct) ? sizeof(msgStruct) : sizeof(pedidoStruct)];
 
-    while (1) {
+    do{
             pthread_mutex_lock(pdados->m);
             int size = read(fd, buffer, sizeof(buffer));
             if (size > 0) {
@@ -472,7 +506,9 @@ void *threadRecebeMenssagens(void *dados) {
                         if (!clientFound) {
                             printf("[ERRO] Cliente '%d' nao esta inscrito no topico '%s'!\n", pedido->pid, pedido->topico);
                         }
-          } else if(pedido->tipo == 0){
+          } else if(pedido->tipo == 4) {
+              handlePedidoTopicos(pedido);
+          }else if(pedido->tipo == 0){
               for (int i = 0; i < contCliente; i++) {
                   if (clientesLista[i].pid == pedido->pid) {
                       for (int j = 0; j < clientesLista[i].numTopicos; j++) {
@@ -512,17 +548,18 @@ void *threadRecebeMenssagens(void *dados) {
                 break;
             }
             pthread_mutex_unlock(pdados->m);
-    }
+    }while(pdados->stop);
     close(fd);
     pthread_exit(NULL);
 }
 
+
 void *threadVerificaTimer(void *dados) {
     TDADOS *pdados = (TDADOS *) dados;
-    while(1){
+    do{
         verificaTimer();
         sleep(1);
-    }
+    }while(pdados->stop);
     pthread_exit(NULL);
 }
 

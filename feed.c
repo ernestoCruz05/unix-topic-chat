@@ -7,7 +7,6 @@
  * Por implementar:
  * ncurses para deixar isto bonitos
  * talvez fazer uma menssagem especial do tipo de um DM se tiver tempo
- * void commTopicos(const char *FED_FIFO)
 */
 
 int tentExit = 0;
@@ -65,12 +64,9 @@ void commLista()
 
 void commMsg(char *topico, int duracao, char *menssagem, char *username)
 {
-  //Codigo para enviar a menssagem para os clientes no topico.
   msgStruct sendMsg;
-  // Garante que a string é propriamente terminado e que assim o buffer não da overflow
   strncpy(sendMsg.topico, topico, sizeof(sendMsg.topico) - 1);
   sendMsg.topico[sizeof(sendMsg.topico) - 1] = '\0';
-  // Acaba aqui
   strncpy(sendMsg.menssagem, menssagem, sizeof(sendMsg.menssagem) - 1);
   sendMsg.menssagem[sizeof(sendMsg.menssagem) - 1] = '\0';
   strncpy(sendMsg.nome, username, sizeof(sendMsg.nome) - 1);
@@ -96,22 +92,47 @@ void commMsg(char *topico, int duracao, char *menssagem, char *username)
 
 void commTopicos(const char *FED_FIFO)
 {
-    //Codigo para mostrar todos os topicos criados.
+    pedidoStruct pedido;
+    respostaTopicosStruct resposta;
 
-    //Enviar um sinal para o manager enviar de volta os topicos.
+    pedido.tipo = 4;
+    pedido.pid = getpid();
+    snprintf(pedido.FIFO , sizeof(pedido.FIFO) , "/tmp/client_fifo_%d" , pedido.pid);
 
-  int fd = open(FED_FIFO, O_RDONLY);
-  if (fd == -1)
-  {
-    printf("[ERRO] Falha ao abrir o FIFO!");
-    exit(-1);
-  }
+    int fd = open(MAN_FIFO , O_WRONLY);
+    if(fd == -1) {
+        printf("\n[ERRO] Falha ao abrir o FIFO do manager!");
+        return;
+    }
 
-  char topicos[20];
-  while (read(fd, topicos, sizeof(topicos)) > 0)
-  {
-    printf("\n[FEED] Inscrito nos topicos : %s \n ", topicos);
-  }
+    if (write(fd, &pedido, sizeof(pedido)) == -1) {
+        printf("\n[ERRO] Falha ao enviar pedido de lista de tópicos!");
+        close(fd);
+        return;
+    }
+    close(fd);
+
+    int fd_feed = open(FED_FIFO, O_RDONLY);
+    if (fd_feed == -1) {
+        printf("\n[ERRO] Falha ao abrir FIFO do cliente!");
+        return;
+    }
+
+    if (read(fd_feed, &resposta, sizeof(resposta)) == -1) {
+        printf("\n[ERRO] Falha ao ler resposta de lista de tópicos!");
+        close(fd_feed);
+        return;
+    }
+    close(fd_feed);
+
+    printf("\n[FEED] Lista de tópicos:\n");
+    for (int i = 0; i < resposta.numTopicos; i++) {
+        printf("[FEED] Tópico: %s, Mensagens Persistentes: %d, Estado: %s\n",
+               resposta.topicos[i].topico,
+               resposta.topicos[i].numMenssagens,
+               resposta.topicos[i].estado == 1 ? "Bloqueado" : "Desbloqueado");
+        fflush(stdout);
+    }
 }
 
 void commSubscribe(char *topico)
