@@ -100,6 +100,7 @@ typedef struct {
 } respostaTopicosStruct;
 typedef struct {
   char nomeTopico[20];
+  int numMenssagensTop;
   int contInscritos;
   int estado;                             // 1 - Bloqueado ; 0 - Desbloqueado
 } topico;

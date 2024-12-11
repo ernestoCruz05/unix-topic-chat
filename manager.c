@@ -74,6 +74,38 @@ void carregaMenssagens() {
     printf("[MANAGER] Mensagens persistentes carregadas do ficheiro %s.\n", f);
 }
 
+void verificaTopicos(){
+  for(int i = 0 ; i < contTopicos ; i++){
+    if(topicosLista[i].numMenssagensTop == 0 && topicosLista[i].contInscritos == 0) {
+        topicosLista[i] = topicosLista[contTopicos - 1];
+        contTopicos--;
+        i--;
+    }
+  }
+}
+
+void removerDeTopico(int pid, char* topico) {
+    for (int i = 0; i < contCliente; i++) {
+        if (clientesLista[i].pid == pid) {
+            for (int j = 0; j < clientesLista[i].numTopicos; j++) {
+                if (strcmp(clientesLista[i].topicosIns[j].nomeTopico, topico) == 0) {
+                    for (int k = j; k < clientesLista[i].numTopicos - 1; k++) {
+                        clientesLista[i].topicosIns[k] = clientesLista[i].topicosIns[k + 1];
+                    }
+                    clientesLista[i].numTopicos--;
+
+                    for (int t = 0; t < contTopicos; t++) {
+                        if (strcmp(topicosLista[t].nomeTopico, topico) == 0) {
+                            topicosLista[t].contInscritos--;
+                            break;
+                        }
+                    }
+                    return;
+                }
+            }
+        }
+    }
+}
 
 void commFecha() {
 
@@ -154,6 +186,7 @@ void criaTopico(msgStruct *msg) {
         strncpy(topicosLista[contTopicos].nomeTopico, msg->topico, sizeof(topicosLista[contTopicos].nomeTopico) - 1);
         topicosLista[contTopicos].nomeTopico[sizeof(topicosLista[contTopicos].nomeTopico) - 1] = '\0';
         topicosLista[contTopicos].contInscritos = 0;
+        topicosLista[contTopicos].numMenssagensTop = 0;
         contTopicos++;
         printf("[MANAGER] Topico '%s' criado a pedido de um utilizador!\n", msg->topico);
     } else {
@@ -175,7 +208,6 @@ void commRemoveCliente(char *nome) {
     for (int i = 0; i < contCliente; i++) {
         if (strcmp(clientesLista[i].nome, nome) == 0) {
             a = 1;
-            clientesLista[i] = clientesLista[contCliente - 1];
 
             msgStruct termina;
             termina.fechado = 1;
@@ -192,9 +224,14 @@ void commRemoveCliente(char *nome) {
 
             close(fd);
 
+            for (int j = 0; j < clientesLista[i].numTopicos; j++) {
+                removerDeTopico(clientesLista[i].pid, clientesLista[i].topicosIns[j].nomeTopico);
+            }
 
+            clientesLista[i] = clientesLista[contCliente - 1];
             contCliente--;
             printf("[MANAGER] Cliente '%s' removido com sucesso!\n", nome);
+            return;
         }
     }
     if(!a)
@@ -287,6 +324,12 @@ void enviaMenssagem(msgStruct *msg) {
             menssagensLista[contMenssagens] = msgNova;
             contMenssagens++;
             printf("[MANAGER] Mensagem persistente adicionada ao topico '%s'!\n", msgNova.topico);
+            for(int i = 0 ; i < contTopicos ; i++) {
+                if(strcmp(topicosLista[i].nomeTopico , msgNova.topico) == 0) {
+                    topicosLista[i].numMenssagensTop++;
+                    break;
+                }
+            }
         } else {
             printf("[ERRO] Numero maximo de mensagens persistentes atingido!\n");
         }
@@ -366,11 +409,14 @@ void enviaMenssagem(msgStruct *msg) {
     }
 }
 
-void removeCliente(pid_t pid) {
+void removeCliente(int pid) {
     int found = 0;
     for (int i = 0; i < contCliente; i++) {
         if (clientesLista[i].pid == pid) {
             found = 1;
+            for (int j = 0; j < clientesLista[i].numTopicos; j++) {
+                removerDeTopico(pid, clientesLista[i].topicosIns[j].nomeTopico);
+            }
         }
         if (found && i < contCliente - 1) {
             clientesLista[i] = clientesLista[i + 1];
@@ -390,6 +436,14 @@ void verificaTimer() {
         if (menssagensLista[i].tempoVida <= agora) {
             printf("[MANAGER] Mensagem persistente no topico '%s' expirada e removida.\n", menssagensLista[i].topico);
             fflush(stdout);
+
+            for(int j = 0 ; j < contTopicos ; j++) {
+                if(strcmp(topicosLista[j].nomeTopico , menssagensLista[i].topico) == 0) {
+                    topicosLista[j].numMenssagensTop--;
+                    break;
+                }
+            }
+
             menssagensLista[i] = menssagensLista[contMenssagens - 1];
             contMenssagens--;
             i--;
@@ -558,6 +612,7 @@ void *threadVerificaTimer(void *dados) {
     TDADOS *pdados = (TDADOS *) dados;
     do{
         verificaTimer();
+        verificaTopicos();
         sleep(1);
     }while(pdados->stop);
     pthread_exit(NULL);
